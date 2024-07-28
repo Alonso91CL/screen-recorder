@@ -1,0 +1,256 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+import { v4 as uuidv4 } from 'uuid';
+---
+
+<Layout title="Welcome to Astro.">
+	<main>
+		<h1 class="text-2xl font-bold mb-4">Grabador de Pantalla</h1>
+    
+		<div class="w-full max-w-4xl">
+			<div class="bg-gray-800 rounded shadow p-4 mb-4">
+				<div class="aspect-w-16 relative">
+					<video id="preview" class="bg-gray-500 w-full h-full" autoplay muted></video>
+					<div id="cameraContainer" class="camera-preview hidden">
+						<video id="cameraPreview" autoplay muted playsinline></video>
+					</div>
+				</div>
+				<button id="toggleRecording" class="mt-4 w-full bg-blue-500 text-white py-2 rounded">Iniciar Grabación</button>
+			</div>
+			
+			<div class="bg-gray-800 rounded shadow p-4">
+				<h2 class="text-xl font-semibold mb-2">Configuración</h2>
+				<div id="config-micro">
+					<div class="mb-4">
+						<label for="microphone" class="block text-sm font-medium text-white">Seleccionar Micrófono</label>
+						<select id="microphone" class="mt-1 block w-full pl-3 pr-10 py-2 text-base text-gray-700 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+					</div>
+					<div class="flex items-center">
+						<input id="useMicrophone" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
+						<label for="useMicrophone" class="ml-2 block text-sm text-white">Activar Grabación de Micrófono</label>
+					</div>
+				</div>
+				<div id="config-camera">
+					<div class="mb-4 mt-2">
+						<label for="camera" class="block text-sm font-medium text-white">Seleccionar Cámara</label>
+						<select id="camera" class="mt-1 block w-full pl-3 pr-10 py-2 text-base text-gray-700 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+					</div>
+					<div class="flex items-center mb-4">
+						<input id="useCamera" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
+						<label for="useCamera" class="ml-2 block text-sm text-white">Activar Grabación de Cámara</label>
+					</div>
+				</div>
+				
+			</div>
+		</div>
+	</main>
+</Layout>
+
+<style>
+	main {
+		margin: auto;
+		margin-bottom: 5px;
+		padding: 1rem;
+		width: 800px;
+		max-width: calc(100% - 2rem);
+		color: white;
+		font-size: 20px;
+		line-height: 1.6;
+	}
+
+	h1{
+		color: white;
+	}
+
+	.aspect-w-16 {
+        width: 100%;
+        position: relative;
+    }
+    .aspect-w-16::before {
+        content: "";
+        display: block;
+        padding-top: 56.25%; /* 16:9 Aspect Ratio */
+    }
+    .aspect-w-16 > * {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+	
+	#config-camera{
+		display: none;
+	}
+    .camera-preview {
+		position: absolute;
+		top: auto !important;
+		left: auto !important;
+		bottom: 10px;
+		right: 10px;
+		width: 150px !important;
+		height: 150px !important;
+        border-radius: 50%;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+	.camera-preview video {
+		width: 135% !important;
+		height: auto !important;
+	}
+	@media (max-width: 768px) {
+		main {
+			width: 100%;
+		}
+
+		#config-camera{
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	import { v4 as uuidv4 } from 'uuid';
+
+	const $btn = document.getElementById('toggleRecording');
+	const $preview = document.getElementById('preview') as HTMLVideoElement;
+	const $microphoneSelect = document.getElementById('microphone') as HTMLInputElement;
+	const $cameraSelect = document.getElementById('camera') as HTMLInputElement;
+	const $useMicrophoneCheckbox = document.getElementById('useMicrophone') as HTMLInputElement;
+	const $useCameraCheckbox = document.getElementById('useCamera') as HTMLInputElement;
+
+	if (!$btn || !$preview || !$microphoneSelect || !$useMicrophoneCheckbox) {
+		throw new Error("One or more required elements are missing from the DOM");
+	}else{
+		let mediaRecorder;
+		let isRecording = false;
+		let combinedStream;
+
+		async function checkAccess() {
+			try {
+				// Verificar acceso a la cámara y al micrófono
+				const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    			stream.getTracks().forEach(track => track.stop());
+				return true;
+			} catch (error) {
+				return false;
+			}
+		}
+		async function getMicrophones() {
+			const hasAccess = await checkAccess();
+			if (!hasAccess) {
+				alert('Por favor otorga permiso para acceder al micrófono y vuelve a cargar la página.');
+				return;
+			}
+			try {
+				const devices = await navigator.mediaDevices.enumerateDevices();
+				const microphones = devices.filter(device => device.kind === 'audioinput');
+				$microphoneSelect.innerHTML = '';
+				microphones.forEach((microphone, index) => {
+					const option = document.createElement('option');
+					option.value = microphone.deviceId;
+					option.textContent = microphone.label || `Micrófono ${index + 1}`;
+					$microphoneSelect.appendChild(option);
+				});
+			} catch (error) {
+				console.error('Error al obtener los micrófonos:', error);
+			}
+		}
+		async function getCameras() {
+			try {
+				const devices = await navigator.mediaDevices.enumerateDevices();
+				const cameras = devices.filter(device => device.kind === 'videoinput');
+				const cameraSelect = document.getElementById('camera');
+				cameraSelect.innerHTML = '';
+				cameras.forEach((camera, index) => {
+					const option = document.createElement('option');
+					option.value = camera.deviceId;
+					option.textContent = camera.label || `Cámara ${index + 1}`;
+					cameraSelect.appendChild(option);
+				});
+			} catch (error) {
+				console.error('Error al obtener las cámaras:', error);
+			}
+		}
+		$btn.addEventListener('click', async () => {
+			if (isRecording) {
+				mediaRecorder.stop();
+				combinedStream.getTracks().forEach(track => track.stop());
+				$btn.textContent = "Iniciar Grabación";
+				isRecording = false;
+			} else {
+				const displayMedia = await navigator.mediaDevices.getDisplayMedia({
+					video: { frameRate: { ideal: 59 } },
+					audio: true
+				});
+
+				let audioTracks = [];
+				if ($useMicrophoneCheckbox.checked) {
+					const userMedia = await navigator.mediaDevices.getUserMedia({
+						audio: {
+							deviceId: { exact: $microphoneSelect.value }
+						}
+					});
+					audioTracks = userMedia.getAudioTracks();
+				}
+
+				let cameraStream;
+				if ($useCameraCheckbox.checked && $cameraSelect.value) {
+					cameraStream = await navigator.mediaDevices.getUserMedia({
+						video: {
+							deviceId: { exact: $cameraSelect.value }
+						}
+					});
+				}
+
+				combinedStream = new MediaStream([
+					...displayMedia.getVideoTracks(),
+					...displayMedia.getAudioTracks(),
+					...audioTracks,
+					...(cameraStream ? cameraStream.getVideoTracks() : [])
+				]);
+
+				$preview.srcObject = combinedStream;
+
+				mediaRecorder = new MediaRecorder(combinedStream, {
+					mimeType: 'video/webm;codecs=vp8,opus'
+				});
+
+				if (cameraStream) {
+					const cameraContainer = document.getElementById('cameraContainer');
+					const cameraPreview = document.getElementById('cameraPreview') as HTMLVideoElement;
+					cameraContainer.classList.remove('hidden');
+					cameraPreview.srcObject = cameraStream;
+				}
+
+				mediaRecorder.start();
+				isRecording = true;
+				$btn.textContent = "Detener Grabación";
+
+				const [video] = displayMedia.getVideoTracks();
+				video.addEventListener("ended", () => {
+					if (isRecording) {
+						mediaRecorder.stop();
+						combinedStream.getTracks().forEach(track => track.stop());
+						$btn.textContent = "Iniciar Grabación";
+						isRecording = false;
+					}
+				});
+
+				mediaRecorder.addEventListener("dataavailable", (e) => {
+					const link = document.createElement("a");
+					const name = uuidv4();
+					link.href = URL.createObjectURL(e.data);
+					link.download = name+".webm";
+					link.click();
+				});
+			}
+		});
+		getMicrophones();
+		getCameras();
+	}
+	
+	
+	
+</script>
