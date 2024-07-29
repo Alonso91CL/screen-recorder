@@ -121,9 +121,9 @@ import Layout from '../layouts/Layout.astro';
 	if (!$btn || !$preview || !$microphoneSelect || !$useMicrophoneCheckbox) {
 		throw new Error("One or more required elements are missing from the DOM");
 	}else{
-		let mediaRecorder;
+		let mediaRecorder:MediaRecorder;
 		let isRecording = false;
-		let combinedStream;
+		let combinedStream:MediaStream;
 
 		async function checkAccess() {
 			try {
@@ -160,13 +160,15 @@ import Layout from '../layouts/Layout.astro';
 				const devices = await navigator.mediaDevices.enumerateDevices();
 				const cameras = devices.filter(device => device.kind === 'videoinput');
 				const cameraSelect = document.getElementById('camera');
-				cameraSelect.innerHTML = '';
-				cameras.forEach((camera, index) => {
-					const option = document.createElement('option');
-					option.value = camera.deviceId;
-					option.textContent = camera.label || `Cámara ${index + 1}`;
-					cameraSelect.appendChild(option);
-				});
+				if(cameraSelect){
+					cameraSelect.innerHTML = '';
+					cameras.forEach((camera, index) => {
+						const option = document.createElement('option');
+						option.value = camera.deviceId;
+						option.textContent = camera.label || `Cámara ${index + 1}`;
+						cameraSelect.appendChild(option);
+					});
+				}
 			} catch (error) {
 				console.error('Error al obtener las cámaras:', error);
 			}
@@ -183,7 +185,7 @@ import Layout from '../layouts/Layout.astro';
 					audio: true
 				});
 
-				let audioTracks = [];
+				let audioTracks:MediaStreamTrack[] = [];
 				if ($useMicrophoneCheckbox.checked) {
 					const userMedia = await navigator.mediaDevices.getUserMedia({
 						audio: {
@@ -218,7 +220,7 @@ import Layout from '../layouts/Layout.astro';
 				if (cameraStream) {
 					const cameraContainer = document.getElementById('cameraContainer');
 					const cameraPreview = document.getElementById('cameraPreview') as HTMLVideoElement;
-					cameraContainer.classList.remove('hidden');
+					if(cameraContainer){cameraContainer.classList.remove('hidden')};
 					cameraPreview.srcObject = cameraStream;
 				}
 
